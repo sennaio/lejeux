@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compteur d'Argent avec Multiplicateur, Auto-Clicker, Reset et Tableau de Scores</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            text-align: center;
+            flex-direction: column;
+            position: relative;
+            padding-top: 50px;
+        }
+
+        #compteur {
+            font-size: 48px;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 2px solid black;
+            display: inline-block;
+        }
+
+        .bouton {
+            font-size: 24px;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        .bouton:disabled {
+            background-color: #ccc;
+        }
+
+        #multiplicateur-container {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        #bouton-multiplicateur {
+            background-color: orange;
+        }
+
+        #autoclicker-container {
+            position: absolute;
+            left: 20px;
+            top: 35%;
+            transform: translateY(-50%);
+        }
+
+        #bouton-autoclicker {
+            background-color: #ff9900;
+        }
+
+        #reset-container {
+            margin-top: 20px;
+        }
+
+        #bouton-reset {
+            background-color: red;
+        }
+
+        /* Style pour le compteur de reset */
+        #reset-counter {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 20px;
+        }
+
+        /* Style pour le tableau des scores */
+        #score-table {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            border: 1px solid black;
+            padding: 10px;
+            background-color: white;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 16px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="autoclicker-container"></div>
+    <div id="multiplicateur-container"></div>
+    
+    <div id="compteur">0$</div>
+    <button class="bouton" id="bouton-plus1" onclick="ajouter(1)">+1$</button>
+    <div id="boutons-supplementaires"></div>
+
+    <!-- Affichage du compteur de reset en haut à droite -->
+    <div id="reset-counter">Resets : 0</div>
+
+    <div id="reset-container">
+        <button class="bouton" id="bouton-reset" onclick="resetGame()" disabled>Reset</button>
+    </div>
+
+    <!-- Tableau des scores -->
+    <div id="score-table">
+        <h3>Scores les plus élevés</h3>
+        <ul id="score-list"></ul>
+    </div>
+
+    <!-- Son à jouer -->
+    <audio id="score-sound" src="https://www.cjoint.com/c/NJrukeWFTuQ"></audio>
+
+    <script>
+        let compteur = 0;
+        let valeurBouton = 10;
+        let multiplicateur = 1;
+        let prochainSeuil = 10000;
+        let prixMultiplicateur = 20000;
+        let prixAutoClicker = 12000;
+        let autoClickers = 0;
+        let autoClickRate = 2.5;
+        let exponentielMultiplicateur = 2.2; // Facteur exponentiel pour augmenter le prix du multiplicateur
+        let exponentielAutoClicker = 1.4; // Facteur exponentiel pour augmenter le prix de l'auto-clicker
+        let resetCount = 0; // Compteur de reset
+        const RESET_THRESHOLD = 1000000; // Seuil pour activer le reset
+        const scores = []; // Tableau des scores les plus élevés
+
+        // Fonction pour ajouter la valeur au compteur
+        function ajouter(valeur) {
+            compteur += valeur * multiplicateur;
+            document.getElementById('compteur').innerText = formatNumber(compteur) + "$";
+
+            // Vérifier si le compteur dépasse un million
+            if (compteur >= 1000000) {
+                document.getElementById('compteur').style.backgroundColor = 'yellow'; // Changement de couleur
+                document.getElementById('score-sound').play(); // Jouer le son
+
+                // Réinitialiser la couleur après un délai
+                setTimeout(() => {
+                    document.getElementById('compteur').style.backgroundColor = 'white';
+                }, 500);
+            }
+
+            // Activer le bouton reset si le compteur atteint 1 000 000
+            if (compteur >= RESET_THRESHOLD) {
+                document.getElementById('bouton-reset').disabled = false;
+            }
+
+            if (compteur >= 150 && !document.getElementById('bouton-plus-variable')) {
+                let boutonVariable = document.createElement('button');
+                boutonVariable.className = 'bouton';
+                boutonVariable.id = 'bouton-plus-variable';
+                boutonVariable.innerText = `+${valeurBouton}$`;
+                boutonVariable.onclick = function() {
+                    ajouter(valeurBouton);
+                };
+                document.getElementById('boutons-supplementaires').appendChild(boutonVariable);
+            }
+
+            if (compteur >= 5000 && valeurBouton === 10) {
+                valeurBouton = 20;
+                mettreAJourBouton();
+            }
+
+            if (compteur >= 10000 && valeurBouton === 20) {
+                valeurBouton = 30;
+                mettreAJourBouton();
+                prochainSeuil = 20000;
+            }
+
+            if (compteur >= prochainSeuil) {
+                valeurBouton += 10;
+                if (valeurBouton > 999) {
+                    valeurBouton = 999;
+                }
+                mettreAJourBouton();
+                prochainSeuil += 10000;
+            }
+
+            if (compteur >= 23000 && !document.getElementById('bouton-multiplicateur')) {
+                creerBoutonMultiplicateur();
+            }
+
+            if (compteur >= 12000 && !document.getElementById('bouton-autoclicker')) {
+                creerBoutonAutoClicker();
+            }
+        }
+
+        function mettreAJourBouton() {
+            let boutonVariable = document.getElementById('bouton-plus-variable');
+            if (boutonVariable) {
+                boutonVariable.innerText = `+${valeurBouton}$`;
+                boutonVariable.onclick = function() {
+                    ajouter(valeurBouton);
+                };
+            }
+        }
+
+        function creerBoutonMultiplicateur() {
+            let boutonMultiplicateur = document.createElement('button');
+            boutonMultiplicateur.className = 'bouton';
+            boutonMultiplicateur.id = 'bouton-multiplicateur';
+            boutonMultiplicateur.innerText = `Acheter x${(multiplicateur + 0.1).toFixed(1)} : ${formatNumber(prixMultiplicateur)}$`;
+            boutonMultiplicateur.onclick = function() {
+                acheterMultiplicateur();
+            };
+            document.getElementById('multiplicateur-container').appendChild(boutonMultiplicateur);
+        }
+
+        function acheterMultiplicateur() {
+            if (compteur >= prixMultiplicateur) {
+                compteur -= prixMultiplicateur;
+                multiplicateur += 0.1;
+                prixMultiplicateur = Math.floor(prixMultiplicateur * exponentielMultiplicateur); // Augmentation exponentielle
+                document.getElementById('compteur').innerText = formatNumber(compteur) + "$";
+
+                let boutonMultiplicateur = document.getElementById('bouton-multiplicateur');
+                boutonMultiplicateur.innerText = `Acheter x${multiplicateur.toFixed(1)} : ${formatNumber(prixMultiplicateur)}$`;
+            }
+        }
+
+        function creerBoutonAutoClicker() {
+            let boutonAutoClicker = document.createElement('button');
+            boutonAutoClicker.className = 'bouton';
+            boutonAutoClicker.id = 'bouton-autoclicker';
+            boutonAutoClicker.innerText = `Acheter Auto-Clicker : ${formatNumber(prixAutoClicker)}$`;
+            boutonAutoClicker.onclick = function() {
+                acheterAutoClicker();
+            };
+            document.getElementById('autoclicker-container').appendChild(boutonAutoClicker);
+        }
+
+        function acheterAutoClicker() {
+            if (compteur >= prixAutoClicker) {
+                compteur -= prixAutoClicker;
+                autoClickers++;
+                document.getElementById('compteur').innerText = formatNumber(compteur) + "$";
+
+                setInterval(function() {
+                    if (document.getElementById('bouton-plus-variable')) {
+                        ajouter(valeurBouton); // Auto-clicker clique sur le bouton avec la plus grande valeur
+                    } else {
+                        ajouter(1); // Par défaut, clic sur le bouton +1
+                    }
+                }, 1000 / (autoClickRate * autoClickers));
+
+                prixAutoClicker = Math.floor(prixAutoClicker * exponentielAutoClicker); // Augmentation exponentielle
+                let boutonAutoClicker = document.getElementById('bouton-autoclicker');
+                boutonAutoClicker.innerText = `Acheter Auto-Clicker : ${formatNumber(prixAutoClicker)}$`;
+            }
+        }
+
+        function formatNumber(nombre) {
+            return Math.floor(nombre).toLocaleString('fr-FR');
+        }
+
+        function resetGame() {
+            if (compteur >= RESET_THRESHOLD) {
+                // Ajouter le score actuel au tableau des scores
+                scores.push(compteur);
+                afficherScores(); // Mettre à jour l'affichage des scores
+
+                compteur = 0;
+                valeurBouton = 10;
+                multiplicateur = 1;
+                prochainSeuil = 10000;
+                prixMultiplicateur = 20000;
+                prixAutoClicker = 12000;
+                autoClickers = 0;
+                document.getElementById('compteur').innerText = formatNumber(compteur) + "$";
+                document.getElementById('boutons-supplementaires').innerHTML = '';
+                document.getElementById('multiplicateur-container').innerHTML = '';
+                document.getElementById('autoclicker-container').innerHTML = '';
+
+                // Désactiver le bouton reset après le reset
+                document.getElementById('bouton-reset').disabled = true;
+
+                // Incrémenter le compteur de reset
+                resetCount++;
+                document.getElementById('reset-counter').innerText = `Resets : ${resetCount}`;
+            }
+        }
+
+        function afficherScores() {
+            const scoreList = document.getElementById('score-list');
+            scoreList.innerHTML = ''; // Vider la liste avant d'ajouter les nouveaux scores
+            scores.sort((a, b) => b - a); // Trier les scores par ordre décroissant
+            scores.slice(0, 10).forEach(score => {
+                const listItem = document.createElement('li');
+                listItem.innerText = formatNumber(score) + "$";
+                scoreList.appendChild(listItem);
+            });
+        }
+    </script>
+
+</body>
+</html>
